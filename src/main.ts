@@ -1,21 +1,35 @@
+import {default as fs} from 'fs';
+
 import {
-    AxiosResponse as AxiosResponse
-} from 'axios';
+    setLight as setLight
+} from './api.ts';
 
-import { update as update } from './api.ts';
+const filePath = process.argv[2]; // Get file path from command-line argument
 
-const errors: String[] = [];
-function logErrors(p: Promise<AxiosResponse<any, any>>) {
+interface ElgatoLightValues {
+    ip: string,
+    brightness: number,
+    color: number,
 }
 
 async function RUN() {
     try {
-        await Promise.all([
-            update('192.168.9.11', 60, 280),
-            update('192.168.9.12', 60, 280),
-            update('192.168.9.13', 60, 280),
-            update('192.168.9.14', 60, 280)
-        ])
+        if (filePath) {
+            try {
+                const data: string = fs.readFileSync(filePath, 'utf8');
+                const updateData: Array<ElgatoLightValues> = JSON.parse(data);
+                const updates = updateData.map((values) => {
+                    return setLight(values.ip, values.brightness, values.color)
+                })
+
+                await Promise.all(updates)
+            } catch (e) {
+                console.log(`Failed to load file: ${filePath}`);
+            }
+        } else {
+            console.log('Please provide a file path as an argument.');
+        }
+
     } catch (e) {
         console.log(e)
     }

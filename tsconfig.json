@@ -2,6 +2,7 @@
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "noEmit": true, // or emitDeclarationOnly: true
+    "types": ["node"],
     "target": "es2015",
     "module": "esnext",
     "moduleResolution": "node",
