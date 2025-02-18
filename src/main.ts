@@ -1,6 +1,10 @@
 import {default as fs} from 'fs';
 
 import {
+    getLightsOnNetwork as getLightsOnNetwork,
+} from './scanForLights.ts';
+import {
+    setDeviceName as setDeviceName,
     setLight as setLight
 } from './api.ts';
 
@@ -12,7 +16,7 @@ interface ElgatoLightValues {
     color: number,
 }
 
-async function RUN() {
+async function updateLights() {
     try {
         if (filePath) {
             try {
@@ -34,4 +38,25 @@ async function RUN() {
         console.log(e)
     }
 }
-RUN();
+updateLights();
+
+async function testScan() {
+    try {
+        const lights = await getLightsOnNetwork();
+        console.log(lights)
+    } catch (e) {
+        console.log(e)
+    }
+}
+//testScan();
+
+
+async function testNameUpdate() {
+    try {
+        const r = await setDeviceName('192.168.9.12', 'nzLight Room');
+        console.log(r)
+    } catch (e) {
+        console.log(e)
+    }
+}
+//testNameUpdate()

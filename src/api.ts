@@ -21,10 +21,9 @@ export interface ElgatoDevice {
     features: String[]
 }
 
-const requestTimeout: number = 100;
 const requestConfig: AxiosRequestConfig =
 {
-    timeout: requestTimeout,
+    timeout: 100,
     headers: {
         'Content-Type': 'application/json',
     }
@@ -33,7 +32,7 @@ const requestConfig: AxiosRequestConfig =
 function setLightFn(ip: String, brightness: number, color: number): Promise<ElgatoLight> {
     return new Promise(async (resolve, reject) => {
         try {
-            const dataPromise: Promise<AxiosResponse<any, any>> = axios.put(`
+            const response: AxiosResponse<any, any> = await axios.put(`
                 http://${ip}:9123/elgato/lights`,
                 /* data */
                 {
@@ -49,7 +48,6 @@ function setLightFn(ip: String, brightness: number, color: number): Promise<Elga
                 /* config */
                 requestConfig
             );
-            const response: AxiosResponse<any, any> = await dataPromise;
             const elgatoLightValues: ElgatoLight = response.data.lights[0];
 
             resolve(elgatoLightValues);
@@ -62,12 +60,11 @@ function setLightFn(ip: String, brightness: number, color: number): Promise<Elga
 function getLightFn(ip: String): Promise<ElgatoLight> {
     return new Promise(async (resolve, reject) => {
         try {
-            const dataPromise: Promise<AxiosResponse<ElgatoLight, any>> = axios.get(`
+            const response: AxiosResponse<ElgatoLight, any> = await axios.get(`
                 http://${ip}:9123/elgato/lights`,
                 /* config */
                 requestConfig
             );
-            const response: AxiosResponse<any, any> = await dataPromise;
             const elgatoLightValues: ElgatoLight = response.data.lights[0];
 
             resolve(elgatoLightValues);
@@ -80,12 +77,11 @@ function getLightFn(ip: String): Promise<ElgatoLight> {
 function getInfoFn(ip: String): Promise<ElgatoDevice> {
     return new Promise(async (resolve, reject) => {
         try {
-            const dataPromise: Promise<AxiosResponse<any, any>> = axios.get(`
+            const response: AxiosResponse<any, any> = await axios.get(`
                 http://${ip}:9123/elgato/accessory-info`,
                 /* config */
                 requestConfig
             );
-            const response: AxiosResponse<any, any> = await dataPromise;
             const elgatoLightValues: ElgatoDevice = response.data;
 
             resolve(elgatoLightValues);
@@ -95,6 +91,27 @@ function getInfoFn(ip: String): Promise<ElgatoDevice> {
     });
 }
 
+function setDeviceNameFn(ip: String, name: String): void {
+    new Promise(async (resolve, reject) => {
+        try {
+            const response: AxiosResponse<any, any> = await axios.put(`
+                http://${ip}:9123/elgato/accessory-info`,
+                /* data */
+                {
+                    "displayName": name,
+                },
+                /* config */
+                requestConfig
+            );
+
+            resolve(response);
+        } catch(e) {
+            reject(e);
+        }
+    });
+}
+
 export const setLight = setLightFn
 export const getLight = getLightFn
 export const getInfo = getInfoFn
+export const setDeviceName = setDeviceNameFn
