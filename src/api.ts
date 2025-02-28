@@ -13,6 +13,7 @@ export interface ElgatoLight {
 
 export interface ElgatoDevice {
     productName: String,
+    ip: String,
     hardwareBoardType: Number,
     firmwareBuildNumber: Number,
     firmwareVersion: String,
@@ -91,8 +92,8 @@ function getInfoFn(ip: String): Promise<ElgatoDevice> {
     });
 }
 
-function setDeviceNameFn(ip: String, name: String): void {
-    new Promise(async (resolve, reject) => {
+function setDeviceNameFn(ip: String, name: String): Promise<AxiosResponse<any, any>> {
+    return new Promise(async (resolve, reject) => {
         try {
             const response: AxiosResponse<any, any> = await axios.put(`
                 http://${ip}:9123/elgato/accessory-info`,

@@ -1,55 +1,66 @@
 import {default as fs} from 'fs';
-
+import {default as express} from 'express';
 import {
     getLightsOnNetwork as getLightsOnNetwork,
 } from './scanForLights.ts';
 import {
+    ElgatoLight as ElgatoLight,
+    ElgatoDevice as ElgatoDevice,
     setDeviceName as setDeviceName,
     setLight as setLight
 } from './api.ts';
 
-const filePath = process.argv[2]; // Get file path from command-line argument
-
-interface ElgatoLightValues {
-    ip: string,
-    brightness: number,
-    color: number,
-}
-
-async function updateLights() {
-    try {
-        if (filePath) {
-            try {
-                const data: string = fs.readFileSync(filePath, 'utf8');
-                const updateData: Array<ElgatoLightValues> = JSON.parse(data);
-                const updates = updateData.map((values) => {
-                    return setLight(values.ip, values.brightness, values.color)
-                })
-
-                await Promise.all(updates)
-            } catch (e) {
-                console.log(`Failed to load file: ${filePath}`);
-            }
-        } else {
-            console.log('Please provide a file path as an argument.');
-        }
-
-    } catch (e) {
-        console.log(e)
-    }
-}
-updateLights();
-
-async function testScan() {
+let activeLights: ElgatoDevice[] = [];
+async function scanAndUpdateCache() {
     try {
         const lights = await getLightsOnNetwork();
-        console.log(lights)
+        activeLights = lights;
     } catch (e) {
         console.log(e)
     }
 }
-//testScan();
 
+const app = express();
+app.use(express.json());
+
+app.get('/force', async (req, res) => {
+    let appReturn;
+    try {
+        await scanAndUpdateCache();
+        res.send(activeLights.map(l => l.ip));
+    } catch (e) {
+        console.log(e)
+    }
+
+    res.send(appReturn);
+});
+
+app.get('/', async (req, res) => {
+    res.send(activeLights.map(l => l.ip));
+});
+
+app.put('/', (req, res) => {
+    try {
+        const data: ElgatoLight = req.body;
+        activeLights.forEach(async light => {
+            await setLight(light.ip, data.brightness, data.temperature)
+        })
+    } catch (e) {
+        console.log(e)
+    }
+
+    res.send();
+});
+
+app.listen(8080, () => {
+    console.log(`Server is listening`);
+});
+
+async function start() {
+    await scanAndUpdateCache();
+    console.log(activeLights)
+}
+start()
 
 async function testNameUpdate() {
     try {
@@ -59,4 +70,3 @@ async function testNameUpdate() {
         console.log(e)
     }
 }
-//testNameUpdate()

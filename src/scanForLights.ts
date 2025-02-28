@@ -28,6 +28,7 @@ function getHostIp(): String {
 */
 function getHostNetwork(): String {
     const ipOctets = getHostIp().split('.');
+    console.log(`Basing subnet off of local ip: ${getHostIp()}`)
     if (ipOctets.length !== 4) {
         return ''
     }
@@ -49,6 +50,7 @@ async function elgatoNetworkCrawler(): Promise<ElgatoDevice[]> {
         const ip: String = `${hostNetwork}.${i}`
         try {
             const elgatoDeviceInfo = await getInfo(ip)
+            elgatoDeviceInfo.ip = ip;
             elgatoDevices.push(elgatoDeviceInfo)
         } catch (e) {
             // Device check timed out
