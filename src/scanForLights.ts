@@ -5,30 +5,18 @@ import {
     ElgatoDevice as ElgatoDevice
 } from './api.ts';
 
+import {
+    default as getNetworkDefaultDomain
+} from './getNetworkDefaultDomain.ts';
 /*
-
-*/
-function getHostIp(): String {
-    const interfaces: NodeJS.Dict<os.NetworkInterfaceInfo[]> = os.networkInterfaces();
-    for (const name of Object.keys(interfaces)) {
-        if (!!name) {
-            for (const iface of interfaces[name]) {
-                if ('IPv4' === iface?.family && !iface?.internal) {
-                    return iface.address;
-                }
-            }
-        }
-    }
-
-    return '127.0.0.1'; // Default to localhost if no external IP is found
-}
 
 /*
     Returns the first 3 octets of the IP
 */
-function getHostNetwork(): String {
-    const ipOctets = getHostIp().split('.');
-    console.log(`Basing subnet off of local ip: ${getHostIp()}`)
+async function getHostNetwork(): Promise<String> {
+    const defaultDomain: String = await getNetworkDefaultDomain();
+    const ipOctets = defaultDomain.split('.');
+    console.log(`Basing subnet off of local ip: ${defaultDomain}`)
     if (ipOctets.length !== 4) {
         return ''
     }
@@ -43,7 +31,7 @@ function getHostNetwork(): String {
 */
 async function elgatoNetworkCrawler(): Promise<ElgatoDevice[]> {
     const elgatoDevices: ElgatoDevice[] = [];
-    const hostNetwork = getHostNetwork();
+    const hostNetwork = await getHostNetwork();
     if (!hostNetwork) return elgatoDevices;
 
     for (let i = 1; i < 255; i++) {
