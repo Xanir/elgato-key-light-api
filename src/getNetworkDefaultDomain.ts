@@ -1,5 +1,17 @@
 import {exec as exec} from 'child_process';
 
+async function runChildProcess(command: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        exec(command, (error, stdout: string, stderr: string) => {
+            if (error || stderr) {
+                reject(error);
+                return;
+            }
+            resolve(stdout);
+        });
+    });;
+}
+
 function getPlatformCommand() {
   let command = '';
 
@@ -26,15 +38,7 @@ export default async function getDefaultGateway(): Promise<String> {
     const command = getPlatformCommand();
     let stdout: string;
     try {
-        stdout = await new Promise((resolve, reject) => {
-            exec(command, (error, stdout: string, stderr: string) => {
-                if (error || stderr) {
-                    reject(error);
-                    return;
-                }
-                resolve(stdout);
-            });
-        });
+        stdout = await runChildProcess(command);
     } catch (error) {
         throw new Error(`Failed to get default gateway: ${error}`);
     }

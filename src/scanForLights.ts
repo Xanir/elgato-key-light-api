@@ -16,7 +16,7 @@ import {
 async function getHostNetwork(): Promise<String> {
     const defaultDomain: String = await getNetworkDefaultDomain();
     const ipOctets = defaultDomain.split('.');
-    console.log(`Basing subnet off of local ip: ${defaultDomain}`)
+    console.log(`Basing subnet off of default network gateway: ${defaultDomain}`)
     if (ipOctets.length !== 4) {
         return ''
     }

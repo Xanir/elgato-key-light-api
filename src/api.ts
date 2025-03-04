@@ -30,86 +30,78 @@ const requestConfig: AxiosRequestConfig =
     }
 };
 
-function setLightFn(ip: String, brightness: number, color: number): Promise<ElgatoLight> {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const response: AxiosResponse<any, any> = await axios.put(`
-                http://${ip}:9123/elgato/lights`,
-                /* data */
-                {
-                    "numberOfLights": 1,
-                    "lights": [
-                        {
-                            "on": 1,
-                            "brightness": brightness,
-                            "temperature": color
-                        }
-                    ]
-                },
-                /* config */
-                requestConfig
-            );
-            const elgatoLightValues: ElgatoLight = response.data.lights[0];
+async function setLightFn(ip: String, brightness: number, color: number): Promise<ElgatoLight> {
+    try {
+        const response: AxiosResponse<any, any> | void = await axios.put(`
+            http://${ip}:9123/elgato/lights`,
+            /* data */
+            {
+                "numberOfLights": 1,
+                "lights": [
+                    {
+                        "on": 1,
+                        "brightness": brightness,
+                        "temperature": color
+                    }
+                ]
+            },
+            /* config */
+            requestConfig
+        )
 
-            resolve(elgatoLightValues);
-        } catch(e) {
-            reject(`Update to ${ip} failed`);
-        }
-    });
+        const elgatoLightValues: ElgatoLight = response?.data?.lights[0];
+        return elgatoLightValues;
+    } catch (e) {
+        throw new Error(`Failed Reuest: Update to ${ip}`)
+    }
 }
 
-function getLightFn(ip: String): Promise<ElgatoLight> {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const response: AxiosResponse<ElgatoLight, any> = await axios.get(`
-                http://${ip}:9123/elgato/lights`,
-                /* config */
-                requestConfig
-            );
-            const elgatoLightValues: ElgatoLight = response.data.lights[0];
+async function getLightFn(ip: String): Promise<ElgatoLight> {
+    try {
+        const response: AxiosResponse<ElgatoLight, any> | void = await axios.get(`
+            http://${ip}:9123/elgato/lights`,
+            /* config */
+            requestConfig
+        );
 
-            resolve(elgatoLightValues);
-        } catch(e) {
-            reject(`Update to ${ip} failed`);
-        }
-    });
+        const elgatoLightValues: ElgatoLight = response?.data?.lights[0];
+        return elgatoLightValues;
+    } catch (e) {
+        throw new Error(`Failed Reuest: Getting light info for ${ip}`)
+    }
 }
 
-function getInfoFn(ip: String): Promise<ElgatoDevice> {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const response: AxiosResponse<any, any> = await axios.get(`
-                http://${ip}:9123/elgato/accessory-info`,
-                /* config */
-                requestConfig
-            );
-            const elgatoLightValues: ElgatoDevice = response.data;
+async function getInfoFn(ip: String): Promise<ElgatoDevice> {
+    try {
+        const response: AxiosResponse<any, any> | void = await axios.get(`
+            http://${ip}:9123/elgato/accessory-info`,
+            /* config */
+            requestConfig
+        );
 
-            resolve(elgatoLightValues);
-        } catch(e) {
-            reject(`Update to ${ip} failed`);
-        }
-    });
+        const elgatoLightValues: ElgatoDevice = response?.data;
+        return elgatoLightValues;
+    } catch (e) {
+        throw new Error(`Failed Reuest: Geting accessory info for ${ip} failed`)
+    }
 }
 
-function setDeviceNameFn(ip: String, name: String): Promise<AxiosResponse<any, any>> {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const response: AxiosResponse<any, any> = await axios.put(`
-                http://${ip}:9123/elgato/accessory-info`,
-                /* data */
-                {
-                    "displayName": name,
-                },
-                /* config */
-                requestConfig
-            );
+async function setDeviceNameFn(ip: String, name: String): Promise<void | AxiosResponse<any, any>> {
+    try {
+        const response: void | AxiosResponse<any, any> = await axios.put(`
+            http://${ip}:9123/elgato/accessory-info`,
+            /* data */
+            {
+                "displayName": name,
+            },
+            /* config */
+            requestConfig
+        )
 
-            resolve(response);
-        } catch(e) {
-            reject(e);
-        }
-    });
+        return response;
+    } catch (e) {
+        throw new Error(`Failed Reuest: Setting device name for ${ip}`)
+    }
 }
 
 export const setLight = setLightFn
