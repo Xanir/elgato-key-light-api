@@ -39,12 +39,12 @@ app.get('/', async (req, res) => {
     res.send(activeLights.map(l => l.ip));
 });
 
-app.put('/', (req, res) => {
+app.put('/', async (req, res) => {
     try {
         const data: ElgatoLight = req.body;
-        activeLights.forEach(async light => {
+        for (const light of activeLights) {
             await setLight(light.ip, data.brightness, data.temperature)
-        })
+        }
     } catch (e) {
         console.log(e)
     }
@@ -64,7 +64,7 @@ start()
 
 async function testNameUpdate() {
     try {
-        const r = await setDeviceName('192.168.9.12', 'nzLight Room');
+        const r = await setDeviceName('192.168.9.12', 'myLight');
         console.log(r)
     } catch (e) {
         console.log(e)
