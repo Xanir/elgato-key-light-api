@@ -31,6 +31,15 @@ const requestConfig: AxiosRequestConfig =
 };
 
 async function setLightFn(ip: String, brightness: number, color: number): Promise<ElgatoLight> {
+    const validationErrors: String[] = [];
+    if (brightness < 0 && brightness > 100) {
+        validationErrors.push(`parameter 'brightness' must be between 0 && 100`)
+    }
+    if (color < 143 && color > 344) {
+        validationErrors.push(`parameter 'color' must be between 143 && 344`)
+    }
+    if (validationErrors.length) {throw validationErrors}
+
     try {
         const response: AxiosResponse<any, any> | void = await axios.put(`
             http://${ip}:9123/elgato/lights`,

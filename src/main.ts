@@ -45,11 +45,10 @@ app.put('/', async (req, res) => {
         for (const light of activeLights) {
             await setLight(light.ip, data.brightness, data.temperature)
         }
+        res.send();
     } catch (e) {
-        console.log(e)
+        res.status(422).send(e);
     }
-
-    res.send();
 });
 
 app.listen(8080, () => {
