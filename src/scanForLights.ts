@@ -33,18 +33,40 @@ async function elgatoNetworkCrawler(): Promise<ElgatoDevice[]> {
     const elgatoDevices: ElgatoDevice[] = [];
     const hostNetwork = await getHostNetwork();
     if (!hostNetwork) return elgatoDevices;
+    const scanStart: number = Date.now();
 
+    const allNetworkIps: String[] = [];
     for (let i = 1; i < 255; i++) {
-        const ip: String = `${hostNetwork}.${i}`
-        try {
-            const elgatoDeviceInfo = await getInfo(ip)
-            elgatoDeviceInfo.ip = ip;
-            elgatoDevices.push(elgatoDeviceInfo)
-        } catch (e) {
-            // Device check timed out
+        const ip: String = `${hostNetwork}.${i}`;
+        allNetworkIps.push(ip);
+    }
+
+    async function processIp(): Promise<Function | null> {
+        const ip: String | undefined = allNetworkIps.pop();
+        if (ip) {
+            try {
+                const elgatoDeviceInfo = await getInfo(ip)
+                elgatoDeviceInfo.ip = ip;
+                elgatoDevices.push(elgatoDeviceInfo)
+            } catch (e) {
+                // Device check timed out
+            }
+
+            return processIp()
+        } else {
+            return null;
         }
     }
 
+    let openConnections: null[] = [];
+    openConnections.length = 9;
+    openConnections.fill(null)
+    console.log(`Processing ${openConnections.length} connections at once`)
+
+    await Promise.all(openConnections.map(e => processIp()))
+
+    const runtime = Date.now() - scanStart;
+    console.log(`Scan took ${runtime}`)
     return elgatoDevices;
 }
 
