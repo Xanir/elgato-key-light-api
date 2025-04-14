@@ -91,7 +91,7 @@ async function getInfoFn(ip: String): Promise<ElgatoDevice> {
         const elgatoLightValues: ElgatoDevice = response?.data;
         return elgatoLightValues;
     } catch (e) {
-        throw new Error(`Failed Reuest: Geting accessory info for ${ip} failed`)
+        throw new Error(`Failed Reuest: Getting accessory info for ${ip} failed`)
     }
 }
 
