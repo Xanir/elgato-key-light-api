@@ -13,8 +13,8 @@ import {
 let activeLights: ElgatoDevice[] = [];
 async function scanAndUpdateCache() {
     try {
-        const lights = await getLightsOnNetwork();
-        activeLights = lights;
+        const lights: String[] = await getLightsOnNetwork();
+        activeLights = lights.map(ip => {ip: ip});
     } catch (e) {
         console.log(e)
     }

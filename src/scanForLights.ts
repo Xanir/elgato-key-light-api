@@ -1,4 +1,6 @@
 import {default as os} from 'os';
+import {default as dgram} from 'dgram';
+import {default as dnsPacket} from 'dns-packet';
 
 import {
     getInfo as getInfo,
@@ -10,45 +12,116 @@ import {
 } from './getNetworkDefaultDomain.ts';
 /*
 
+
 /*
     Returns the first 3 octets of the IP
 */
-async function getHostNetwork(): Promise<String> {
-    const defaultDomain: String = await getNetworkDefaultDomain();
-    const ipOctets = defaultDomain.split('.');
-    console.log(`Basing subnet off of default network gateway: ${defaultDomain}`)
+function dropLastOctetOfIP(ip: String) {
+    const ipOctets = ip.split('.');
     if (ipOctets.length !== 4) {
         return ''
     }
+
 
     // Drop the IP of the host
     ipOctets.pop();
     return ipOctets.join('.')
 }
 
-/*
-    Crawl the available network looking for any Elgato devices that respond
-*/
-async function elgatoNetworkCrawler(): Promise<ElgatoDevice[]> {
-    const elgatoDevices: ElgatoDevice[] = [];
-    const hostNetwork = await getHostNetwork();
-    if (!hostNetwork) return elgatoDevices;
+async function defaultInterface () {
+    var networks = os.networkInterfaces()
+    var names = Object.keys(networks).sort()
+    const allInterfaces: os.NetworkInterfaceInfo[] = [];
 
-    for (let i = 1; i < 255; i++) {
-        const ip: String = `${hostNetwork}.${i}`
-        try {
-            const elgatoDeviceInfo = await getInfo(ip)
-            elgatoDeviceInfo.ip = ip;
-            elgatoDevices.push(elgatoDeviceInfo)
-        } catch (e) {
-            // Device check timed out
-        }
+    for (const interfaceList of Object.values(networks)) {
+        interfaceList?.forEach(iface => allInterfaces.push(iface))
     }
 
-    return elgatoDevices;
+
+    const ipv4Interfaces: os.NetworkInterfaceInfo[] = allInterfaces.filter(iface => iface && !iface.internal && iface.family === 'IPv4')
+    if (ipv4Interfaces.length === 1) {
+        return ipv4Interfaces[0].address;
+    }
+    const defaultNetwork = await getNetworkDefaultDomain();
+    const networkIP = dropLastOctetOfIP(defaultNetwork);
+
+    const validInterfaces: os.NetworkInterfaceInfo[] = ipv4Interfaces.filter(iface => dropLastOctetOfIP(iface.address) === networkIP)
+    return validInterfaces[0].address;
+}
+
+async function querydns(multicastAddress, question, timeout) {
+    return new Promise<String[]>(async (resolve, reject) => {
+        try {
+            const lightIPs: String[] = [];
+
+            const mDNSport = 5353;
+            const socket = dgram.createSocket({
+                type: 'udp4',
+                reuseAddr: false,
+                reusePort: false,
+            }); // or 'udp6' for IPv6
+
+            socket.on('message', (message, remote) => {
+                const packet = dnsPacket.decode(message)
+                const answer = packet.answers ? packet.answers[0] : null
+                if (!answer) return
+                if (answer.name !== question.name) return
+
+                lightIPs.push(remote.address)
+            });
+
+            socket.on('close', () => {
+                resolve(lightIPs)
+            });
+
+            socket.on('error', (err) => {
+                reject(err)
+                socket.close();
+            });
+
+            const defaultAddress = await defaultInterface();
+
+            // Create and wait for the socket to be ready
+            await new Promise<void>((resolve, reject) => {
+                try {
+                    socket.bind({
+                        port: mDNSport,
+                        address: defaultAddress,
+                        exclusive: false
+                    }, () => {resolve()})
+                } catch (err) {
+                    console.log(err)
+                    reject(err)
+                }
+            })
+            socket.addMembership(multicastAddress);
+            socket.setBroadcast(true);
+            socket.setMulticastLoopback(false); // Enable loopback (receive own messages)
+
+            const message = dnsPacket.encode({
+                type: 'query',
+                questions: [question]
+            })
+            socket.send(message, 0, message.length, mDNSport, multicastAddress);
+
+            setTimeout(() => {
+                socket.close();
+            }, timeout)
+        } catch (err) {
+            console.log(err)
+
+
+            reject(err)
+        }
+    })
 }
 
 export async function getLightsOnNetwork() {
-    const devices: ElgatoDevice[] = await elgatoNetworkCrawler()
-    return devices.filter((device: ElgatoDevice) => device.features.includes('lights'));
+    const lightIPs: String[] = await querydns('224.0.0.251', {
+        name: '_elg._tcp.local',
+        type: 'PTR',
+        class: 'IN',
+    }, 500)
+
+    return lightIPs;
 }
