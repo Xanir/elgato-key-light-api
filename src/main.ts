@@ -10,11 +10,17 @@ import {
     setLight as setLight
 } from './api.ts';
 
-let activeLights: ElgatoDevice[] = [];
+import {
+    getLights as getLights,
+    getDevicesInGroup as getDevicesInGroup,
+    addDeviceToGroup as addDeviceToGroup,
+    updateActiveDevices as updateActiveDevices
+} from './deviceManager.ts'
+
 async function scanAndUpdateCache() {
     try {
-        const lights: String[] = await getLightsOnNetwork();
-        activeLights = lights.map(ip => {ip: ip});
+        const deviceIPs = await getLightsOnNetwork();
+        await updateActiveDevices(deviceIPs);
     } catch (e) {
         console.log(e)
     }
@@ -23,28 +29,60 @@ async function scanAndUpdateCache() {
 const app = express();
 app.use(express.json());
 
-app.get('/force', async (req, res) => {
+app.post('/force', async (req, res) => {
     let appReturn;
     try {
         await scanAndUpdateCache();
-        res.send(activeLights.map(l => l.ip));
+        res.send();
     } catch (e) {
+        res.status(500).send();
         console.log(e)
     }
 
     res.send(appReturn);
 });
 
-app.get('/', async (req, res) => {
-    res.send(activeLights.map(l => l.ip));
-});
-
-app.put('/', async (req, res) => {
+app.put('/light', async (req, res) => {
     try {
-        const data: ElgatoLight = req.body;
-        for (const light of activeLights) {
+        const data: ElgatoLight = req.body.light;
+        if (!data) {
+            res.status(422).send();
+            return
+        }
+
+        let lights: ElgatoDevice[] | null = null;
+        if (req.body.group) {
+            lights = getDevicesInGroup(req.body.group)
+        }
+        if (req.body.serialNumber) {
+            lights = getLights().filter(light => light.serialNumber === req.body.serialNumber);
+        }
+
+        if (!lights) {
+            res.status(422).send();
+            return
+        }
+
+        for (const light of lights) {
             await setLight(light.ip, data.brightness, data.temperature)
         }
+
+        res.send();
+    } catch (e) {
+        res.status(422).send(e);
+    }
+});
+
+app.put('/group', async (req, res) => {
+    try {
+        const data = req.body;
+
+        const groupName: String = data.groupName
+        const serialNumbers: String[] = data.serialNumbers
+        for (const serialNumber of serialNumbers) {
+            addDeviceToGroup(groupName, serialNumber)
+        }
+        
         res.send();
     } catch (e) {
         res.status(422).send(e);
@@ -57,15 +95,6 @@ app.listen(8080, () => {
 
 async function start() {
     await scanAndUpdateCache();
-    console.log(activeLights)
+    console.log(getLights())
 }
 start()
-
-async function testNameUpdate() {
-    try {
-        const r = await setDeviceName('192.168.9.12', 'myLight');
-        console.log(r)
-    } catch (e) {
-        console.log(e)
-    }
-}

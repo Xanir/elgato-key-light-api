@@ -3,7 +3,6 @@ import {default as dgram} from 'dgram';
 import {default as dnsPacket} from 'dns-packet';
 
 import {
-    getInfo as getInfo,
     ElgatoDevice as ElgatoDevice
 } from './api.ts';
 
@@ -57,7 +56,7 @@ async function querydns(multicastAddress, question, timeout) {
             const mDNSport = 5353;
             const socket = dgram.createSocket({
                 type: 'udp4',
-                reuseAddr: false,
+                reuseAddr: true,
                 reusePort: false,
             }); // or 'udp6' for IPv6
 
@@ -121,7 +120,7 @@ export async function getLightsOnNetwork() {
         name: '_elg._tcp.local',
         type: 'PTR',
         class: 'IN',
-    }, 500)
+    }, 600)
 
     return lightIPs;
 }
