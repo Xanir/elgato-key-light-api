@@ -10,10 +10,7 @@ const allDevicesBySerial: Map<String, ElgatoDevice> = new Map();
 type DeviceIdentifiers = 'ip' | 'serialNumber';
 
 function getExistingDeviceBy(type: DeviceIdentifiers, value: String): null | ElgatoDevice {
-    console.log(allDevicesBySerial)
     for (const device of allDevicesBySerial.values()) {
-        console.log(device[type])
-        console.log(value)
         if (device[type] === value) {
             return device;
         }

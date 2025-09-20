@@ -6,7 +6,6 @@ import {
 import {
     ElgatoLight as ElgatoLight,
     ElgatoDevice as ElgatoDevice,
-    setDeviceName as setDeviceName,
     setLight as setLight
 } from './api.ts';
 
@@ -22,23 +21,22 @@ async function scanAndUpdateCache() {
         const deviceIPs = await getLightsOnNetwork();
         await updateActiveDevices(deviceIPs);
     } catch (e) {
-        console.log(e)
+        console.error(e)
     }
 }
 
 const servicesRouter: express.Router = express.Router()
 
 servicesRouter.post('/force', async (req, res) => {
-    let appReturn;
     try {
         await scanAndUpdateCache();
-        res.send();
+        res.send(getLights());
     } catch (e) {
         res.status(500).send();
-        console.log(e)
+        console.error(e)
     }
 
-    res.send(appReturn);
+    res.send();
 });
 
 servicesRouter.put('/light', async (req, res) => {

@@ -3,10 +3,6 @@ import {default as dgram} from 'dgram';
 import {default as dnsPacket} from 'dns-packet';
 
 import {
-    ElgatoDevice as ElgatoDevice
-} from './api.ts';
-
-import {
     default as getNetworkDefaultDomain
 } from './getNetworkDefaultDomain.ts';
 /*
@@ -21,7 +17,6 @@ function dropLastOctetOfIP(ip: String) {
         return ''
     }
 
-
     // Drop the IP of the host
     ipOctets.pop();
     return ipOctets.join('.')
@@ -29,7 +24,6 @@ function dropLastOctetOfIP(ip: String) {
 
 async function defaultInterface () {
     var networks = os.networkInterfaces()
-    var names = Object.keys(networks).sort()
     const allInterfaces: os.NetworkInterfaceInfo[] = [];
 
     for (const interfaceList of Object.values(networks)) {
@@ -48,18 +42,47 @@ async function defaultInterface () {
     return validInterfaces[0].address;
 }
 
-async function querydns(multicastAddress, question, timeout) {
+async function createSock(multicastAddress: string, mDNSport: number): dgram.Socket {
+    const socket: dgram.Socket = dgram.createSocket({
+        type: 'udp4',
+        reuseAddr: true,
+        reusePort: false,
+    }); // or 'udp6' for IPv6
+
+    socket.on('error', (err) => {
+        socket.close();
+    });
+
+    const defaultAddress = await defaultInterface();
+
+    // Create and wait for the socket to be ready
+    await new Promise<void>((resolve, reject) => {
+        try {
+            socket.bind({
+                port: mDNSport,
+                address: defaultAddress,
+                exclusive: false
+            }, () => {resolve()})
+        } catch (err) {
+            console.error(err)
+            reject(err)
+        }
+    })
+    socket.addMembership(multicastAddress);
+    socket.setBroadcast(true);
+    socket.setMulticastLoopback(false); // Enable loopback (receive own messages)
+
+    return socket;
+}
+
+async function querydns(multicastAddress: string, question: JSON, timeout: number) {
     return new Promise<String[]>(async (resolve, reject) => {
         try {
             const lightIPs: String[] = [];
 
             const mDNSport = 5353;
-            const socket = dgram.createSocket({
-                type: 'udp4',
-                reuseAddr: true,
-                reusePort: false,
-            }); // or 'udp6' for IPv6
 
+            const socket: dgram.Socket = await createSock(multicastAddress, mDNSport)
             socket.on('message', (message, remote) => {
                 const packet = dnsPacket.decode(message)
                 const answer = packet.answers ? packet.answers[0] : null
@@ -75,27 +98,7 @@ async function querydns(multicastAddress, question, timeout) {
 
             socket.on('error', (err) => {
                 reject(err)
-                socket.close();
             });
-
-            const defaultAddress = await defaultInterface();
-
-            // Create and wait for the socket to be ready
-            await new Promise<void>((resolve, reject) => {
-                try {
-                    socket.bind({
-                        port: mDNSport,
-                        address: defaultAddress,
-                        exclusive: false
-                    }, () => {resolve()})
-                } catch (err) {
-                    console.log(err)
-                    reject(err)
-                }
-            })
-            socket.addMembership(multicastAddress);
-            socket.setBroadcast(true);
-            socket.setMulticastLoopback(false); // Enable loopback (receive own messages)
 
             const message = dnsPacket.encode({
                 type: 'query',
@@ -107,8 +110,7 @@ async function querydns(multicastAddress, question, timeout) {
                 socket.close();
             }, timeout)
         } catch (err) {
-            console.log(err)
-
+            console.error(err)
 
             reject(err)
         }
