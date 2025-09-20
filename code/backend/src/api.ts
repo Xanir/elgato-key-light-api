@@ -24,7 +24,7 @@ export interface ElgatoDevice {
 
 const requestConfig: AxiosRequestConfig =
 {
-    timeout: 200,
+    timeout: 600,
     headers: {
         'Content-Type': 'application/json',
     }
