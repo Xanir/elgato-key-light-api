@@ -50,7 +50,7 @@ export function addDeviceToGroup(groupName: String, serialNumber: String): void 
         groups.set(groupNameStr, devicesInGroup);
     }
 
-    const deviceMatch = devicesInGroup.filter(device => device === device);
+    const deviceMatch = devicesInGroup.filter(device => device.serialNumber === serialNumber);
 
     // Check if device is already in the list
     if (deviceMatch && deviceMatch.length) {
