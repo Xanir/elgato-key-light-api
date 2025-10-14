@@ -22,38 +22,50 @@ function dropLastOctetOfIP(ip: String) {
     return ipOctets.join('.')
 }
 
+/*
+    Determines the default IPv4 interface address for outgoing traffic.
+*/
 async function defaultInterface () {
-    var networks = os.networkInterfaces()
+    const overrideInterface = process.env.DEFAULT_INTERFACE;
+    if (overrideInterface) {
+        return overrideInterface;
+    }
+
+    const networks = os.networkInterfaces()
     const allInterfaces: os.NetworkInterfaceInfo[] = [];
 
     for (const interfaceList of Object.values(networks)) {
         interfaceList?.forEach(iface => allInterfaces.push(iface))
     }
 
-
     const ipv4Interfaces: os.NetworkInterfaceInfo[] = allInterfaces.filter(iface => iface && !iface.internal && iface.family === 'IPv4')
     if (ipv4Interfaces.length === 1) {
         return ipv4Interfaces[0].address;
     }
+
+    // Use default network domain/gateway logic if available to pick the best interface
     const defaultNetwork = await getNetworkDefaultDomain();
     const networkIP = dropLastOctetOfIP(defaultNetwork);
 
     const validInterfaces: os.NetworkInterfaceInfo[] = ipv4Interfaces.filter(iface => dropLastOctetOfIP(iface.address) === networkIP)
-    return validInterfaces[0].address;
+
+    return validInterfaces.length > 0 ? validInterfaces[0].address : '0.0.0.0';
 }
 
-async function createSock(multicastAddress: string, mDNSport: number): dgram.Socket {
+async function createSock(multicastAddress: string, mDNSport: number): Promise<dgram.Socket> {
     const socket: dgram.Socket = dgram.createSocket({
         type: 'udp4',
         reuseAddr: true,
-        reusePort: false,
-    }); // or 'udp6' for IPv6
+        reusePort: true,
+    });
 
     socket.on('error', (err) => {
         socket.close();
+        throw err;
     });
 
     const defaultAddress = await defaultInterface();
+    console.log(`socket default interface: ${defaultAddress}`)
 
     // Create and wait for the socket to be ready
     await new Promise<void>((resolve, reject) => {
@@ -67,62 +79,62 @@ async function createSock(multicastAddress: string, mDNSport: number): dgram.Soc
             console.error(err)
             reject(err)
         }
-    })
-    socket.addMembership(multicastAddress);
+    });
+
+    socket.setMulticastInterface(defaultAddress)
+    socket.addMembership(multicastAddress, defaultAddress);
     socket.setBroadcast(true);
     socket.setMulticastLoopback(false); // Enable loopback (receive own messages)
 
     return socket;
 }
 
-async function querydns(multicastAddress: string, question: JSON, timeout: number) {
-    return new Promise<String[]>(async (resolve, reject) => {
-        try {
-            const lightIPs: String[] = [];
+async function querydns(multicastAddress: string, question: JSON, timeout: number): Promise<String[]> {
+    const lightIPs: String[] = [];
+    const mDNSport = 5353;
 
-            const mDNSport = 5353;
+    const socket: dgram.Socket = await createSock(multicastAddress, mDNSport);
+    socket.on('message', (message, remote) => {
+        const packet = dnsPacket.decode(message)
+        const answer = packet.answers ? packet.answers[0] : null
+        if (!answer) return
+        if (answer.name !== question.name) return
 
-            const socket: dgram.Socket = await createSock(multicastAddress, mDNSport)
-            socket.on('message', (message, remote) => {
-                const packet = dnsPacket.decode(message)
-                const answer = packet.answers ? packet.answers[0] : null
-                if (!answer) return
-                if (answer.name !== question.name) return
+        lightIPs.push(remote.address)
+    });
 
-                lightIPs.push(remote.address)
-            });
+    socket.on('error', (err) => {
+        socket.close();
+        throw err
+    });
 
-            socket.on('close', () => {
-                resolve(lightIPs)
-            });
+    const message = dnsPacket.encode({
+        type: 'query',
+        questions: [question]
+    })
+    console.log(`mDNS ${socket.address().address}:${socket.address().port} ${question.name}`)
 
-            socket.on('error', (err) => {
-                reject(err)
-            });
+    await new Promise<void>(async (resolve, reject) => {
+        socket.send(message, 0, message.length, mDNSport, multicastAddress, () => {resolve()});
+    })
 
-            const message = dnsPacket.encode({
-                type: 'query',
-                questions: [question]
-            })
-            socket.send(message, 0, message.length, mDNSport, multicastAddress);
+    setTimeout(() => {
+        socket.close();
+    }, timeout)
 
-            setTimeout(() => {
-                socket.close();
-            }, timeout)
-        } catch (err) {
-            console.error(err)
-
-            reject(err)
-        }
+    return await new Promise<String[]>((resolve, reject) => {
+        socket.on('close', () => {
+            resolve(lightIPs)
+        });
     })
 }
 
 export async function getLightsOnNetwork() {
-    const lightIPs: String[] = await querydns('224.0.0.251', {
+    let lightIPs: String[] = await querydns('224.0.0.251', {
         name: '_elg._tcp.local',
         type: 'PTR',
         class: 'IN',
-    }, 600)
+    }, 900)
 
     return lightIPs;
 }
