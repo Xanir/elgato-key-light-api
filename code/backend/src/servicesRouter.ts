@@ -86,4 +86,10 @@ servicesRouter.put('/group', async (req, res) => {
     }
 });
 
+async function initialScan() {
+    await scanAndUpdateCache();
+    console.log(getLights().map(l => l.serialNumber));
+}
+initialScan();
+
 export default servicesRouter
