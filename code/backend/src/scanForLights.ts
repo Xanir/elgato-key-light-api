@@ -3,10 +3,29 @@ import {default as dgram} from 'dgram';
 import {default as dnsPacket} from 'dns-packet';
 
 import {
+    updateActiveDevices as updateActiveDevices
+} from './deviceManager.ts'
+
+import {
     default as getNetworkDefaultDomain
 } from './getNetworkDefaultDomain.ts';
-/*
 
+const multicastPort: number = 5353;
+const multicastAddress: string = '224.0.0.251';
+
+interface mDNSquery {
+    name: String
+    type: 'PTR' | 'A'
+    class: 'IN'
+}
+const mDNSelgatoQuery: mDNSquery = {
+    name: '_elg._tcp.local',
+    type: 'PTR',
+    class: 'IN',
+}
+
+const defaultAddressP: Promise<string> = defaultInterface();
+const groundedSocketP: Promise<dgram.Socket> = createSock('224.0.0.251', 5353);
 
 /*
     Returns the first 3 octets of the IP
@@ -64,8 +83,7 @@ async function createSock(multicastAddress: string, mDNSport: number): Promise<d
         throw err;
     });
 
-    const defaultAddress = await defaultInterface();
-    console.log(`socket default interface: ${defaultAddress}`)
+    const defaultAddress = await defaultAddressP;
 
     // Create and wait for the socket to be ready
     await new Promise<void>((resolve, reject) => {
@@ -81,7 +99,6 @@ async function createSock(multicastAddress: string, mDNSport: number): Promise<d
         }
     });
 
-    socket.setMulticastInterface(defaultAddress)
     socket.addMembership(multicastAddress, defaultAddress);
     socket.setBroadcast(true);
     socket.setMulticastLoopback(false); // Enable loopback (receive own messages)
@@ -89,52 +106,67 @@ async function createSock(multicastAddress: string, mDNSport: number): Promise<d
     return socket;
 }
 
-async function querydns(multicastAddress: string, question: JSON, timeout: number): Promise<String[]> {
-    const lightIPs: String[] = [];
-    const mDNSport = 5353;
+let isInit: true | false = false;
+export async function init(): Promise<void> {
+    if (!isInit) {
+        isInit = true
+    }
 
-    const socket: dgram.Socket = await createSock(multicastAddress, mDNSport);
+    const socket: dgram.Socket = await groundedSocketP;
+
     socket.on('message', (message, remote) => {
-        const packet = dnsPacket.decode(message)
-        const answer = packet.answers ? packet.answers[0] : null
-        if (!answer) return
-        if (answer.name !== question.name) return
+        if (remote.family == 'IPv4') {
+            const packet = dnsPacket.decode(message)
+            const answer = packet.answers ? packet.answers[0] : null
+            if (
+                !answer ||
+                answer.name !== mDNSelgatoQuery.name ||
+                !packet.additionals ||
+                packet.additionals.length === 0
+            ) return
 
-        lightIPs.push(remote.address)
-    });
+            const additialRecordWithIp = packet.additionals.filter((record => record.type === 'A'))
+            if (additialRecordWithIp.length !== 1) return
 
-    socket.on('error', (err) => {
-        socket.close();
-        throw err
-    });
+            const ipForLight = additialRecordWithIp[0].data
+            try {
+                updateActiveDevices([ipForLight])
+            } catch (err) {
+                console.error(`failed to get data for light at: ${ipForLight}`)
+            }
+        }
+    })
+    socket.on('close', () => {
+        console.error('the log socket is closed?')
+    })
 
     const message = dnsPacket.encode({
         type: 'query',
-        questions: [question]
-    })
-    console.log(`mDNS ${socket.address().address}:${socket.address().port} ${question.name}`)
-
-    await new Promise<void>(async (resolve, reject) => {
-        socket.send(message, 0, message.length, mDNSport, multicastAddress, () => {resolve()});
+        questions: [mDNSelgatoQuery]
     })
 
-    setTimeout(() => {
-        socket.close();
-    }, timeout)
+    setInterval(() => {
+        socket.send(message, 0, message.length, multicastPort, multicastAddress)
+    }, 5000)
+}
 
-    return await new Promise<String[]>((resolve, reject) => {
-        socket.on('close', () => {
-            resolve(lightIPs)
-        });
+async function wait(time: number) {
+    await new Promise<void>((resolve, reject) => {
+        setTimeout(resolve, time)
     })
 }
 
-export async function getLightsOnNetwork() {
-    let lightIPs: String[] = await querydns('224.0.0.251', {
-        name: '_elg._tcp.local',
-        type: 'PTR',
-        class: 'IN',
-    }, 900)
+export async function forceQuery() {
+    if (!isInit) {
+        init();
+    } else {
+        const socket: dgram.Socket = await groundedSocketP;
+        const message = dnsPacket.encode({
+            type: 'query',
+            questions: [mDNSelgatoQuery]
+        })
 
-    return lightIPs;
+        socket.send(message, 0, message.length, multicastPort, multicastAddress)
+        await wait(600)
+    }
 }

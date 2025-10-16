@@ -1,4 +1,3 @@
-import {default as fs} from 'fs';
 import express from 'express';
 
 import services from './servicesRouter';

@@ -4,7 +4,7 @@ import {
     ElgatoDevice as ElgatoDevice
 } from './api.ts';
 
-const groups: Map<string, ElgatoDevice[]> = new Map();
+const groups: Map<String, Set<String>> = new Map();
 const allDevicesBySerial: Map<String, ElgatoDevice> = new Map();
 
 type DeviceIdentifiers = 'ip' | 'serialNumber';
@@ -27,43 +27,43 @@ export function getLights(): ElgatoDevice[] {
     return lights;
 }
 
-export function getDevicesInGroup(groupName: String): ElgatoDevice[] {
-    const devices = groups.get(groupName.toString());
-    if (!devices) {return []};
-    // Clone array before returning
-    return Array.from(devices);
+export function getGroups(): String[] {
+    return Array.from(groups.keys());
 }
 
-export function addDeviceToGroup(groupName: String, serialNumber: String): void {
-    const groupNameStr: string = groupName.toString();
+export function getDevicesInGroup(groupName: String): ElgatoDevice[] {
+    const deviceIps = groups.get(groupName);
+    if (!deviceIps) {return []};
+    const devices: ElgatoDevice[] = Array.from(deviceIps).map(ip => getExistingDeviceBy('ip', ip)).filter(d => d !== null && d!== undefined)
+    // Clone array before returning
+    return devices;
+}
+
+export function addDeviceToGroup(groupName: String, serialNumber: String): number {
+    const groupNameStr: String = groupName;
 
     const existingDevice = getExistingDeviceBy('serialNumber', serialNumber);
     if (!existingDevice) {
-        return;
+        return 0;
     }
 
-    let devicesInGroup = groups.get(groupNameStr);
+    let devicesInGroup: Set<String> | undefined = groups.get(groupNameStr);
     // Check if array exists for this group name
     if (!devicesInGroup) {
         // Init a blank array
-        devicesInGroup = [];
+        devicesInGroup = new Set();
         groups.set(groupNameStr, devicesInGroup);
     }
 
-    const deviceMatch = devicesInGroup.filter(device => device.serialNumber === serialNumber);
+    devicesInGroup.add(existingDevice.ip)
 
-    // Check if device is already in the list
-    if (deviceMatch && deviceMatch.length) {
-        // Device exists, abort
-        return;
-    }
-
-    // Device does not exist in the list so add it
-    devicesInGroup.push(existingDevice);
+    return 1;
 }
 
 export async function updateActiveDevices(deviceIPs: String[]) {
     for (const ip of deviceIPs) {
+        if (Array.from(allDevicesBySerial.values()).filter(device => device.ip === ip).length < 0) continue;
+
         const device: ElgatoDevice = await getInfo(ip);
         device.ip = ip;
         const existingDevice = getExistingDeviceBy('serialNumber', device.serialNumber);

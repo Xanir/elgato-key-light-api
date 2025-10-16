@@ -4,7 +4,7 @@ async function runChildProcess(command: string): Promise<string> {
     return new Promise((resolve, reject) => {
         exec(command, (error, stdout: string, stderr: string) => {
             if (error || stderr) {
-                reject(error);
+                reject(error || stderr);
                 return;
             }
             resolve(stdout);
