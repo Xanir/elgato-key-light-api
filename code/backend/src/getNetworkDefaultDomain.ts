@@ -1,4 +1,5 @@
 import {exec as exec} from 'child_process';
+import {default as os} from 'os';
 
 async function runChildProcess(command: string): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -34,7 +35,7 @@ function getPlatformCommand() {
   return command;
 }
 
-export default async function getDefaultGateway(): Promise<String> {
+export async function getDefaultGateway(): Promise<String> {
     const command = getPlatformCommand();
     let stdout: string;
     try {
@@ -54,4 +55,48 @@ export default async function getDefaultGateway(): Promise<String> {
     }
 
     return gatewayIP[0];
+}
+
+/*
+    Returns the first 3 octets of the IP
+*/
+function dropLastOctetOfIP(ip: String) {
+    const ipOctets = ip.split('.');
+    if (ipOctets.length !== 4) {
+        return ''
+    }
+
+    // Drop the IP of the host
+    ipOctets.pop();
+    return ipOctets.join('.')
+}
+
+/*
+    Determines the default IPv4 interface address for outgoing traffic.
+*/
+export default async function getDefaultInterface(): Promise<string> {
+    const overrideInterface = process.env.DEFAULT_INTERFACE;
+    if (overrideInterface) {
+        return overrideInterface;
+    }
+
+    const networks = os.networkInterfaces()
+    const allInterfaces: os.NetworkInterfaceInfo[] = [];
+
+    for (const interfaceList of Object.values(networks)) {
+        interfaceList?.forEach(iface => allInterfaces.push(iface))
+    }
+
+    const ipv4Interfaces: os.NetworkInterfaceInfo[] = allInterfaces.filter(iface => iface && !iface.internal && iface.family === 'IPv4')
+    if (ipv4Interfaces.length === 1) {
+        return ipv4Interfaces[0].address;
+    }
+
+    // Use default network domain/gateway logic if available to pick the best interface
+    const defaultNetwork = await getDefaultGateway();
+    const networkIP = dropLastOctetOfIP(defaultNetwork);
+
+    const validInterfaces: os.NetworkInterfaceInfo[] = ipv4Interfaces.filter(iface => dropLastOctetOfIP(iface.address) === networkIP)
+
+    return validInterfaces.length > 0 ? validInterfaces[0].address : '0.0.0.0';
 }

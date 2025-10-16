@@ -1,4 +1,3 @@
-import {default as os} from 'os';
 import {default as dgram} from 'dgram';
 import {default as dnsPacket} from 'dns-packet';
 
@@ -7,7 +6,7 @@ import {
 } from './deviceManager.ts'
 
 import {
-    default as getNetworkDefaultDomain
+    default as getDefaultInterface
 } from './getNetworkDefaultDomain.ts';
 
 const multicastPort: number = 5353;
@@ -24,52 +23,8 @@ const mDNSelgatoQuery: mDNSquery = {
     class: 'IN',
 }
 
-const defaultAddressP: Promise<string> = defaultInterface();
-const groundedSocketP: Promise<dgram.Socket> = createSock('224.0.0.251', 5353);
-
-/*
-    Returns the first 3 octets of the IP
-*/
-function dropLastOctetOfIP(ip: String) {
-    const ipOctets = ip.split('.');
-    if (ipOctets.length !== 4) {
-        return ''
-    }
-
-    // Drop the IP of the host
-    ipOctets.pop();
-    return ipOctets.join('.')
-}
-
-/*
-    Determines the default IPv4 interface address for outgoing traffic.
-*/
-async function defaultInterface () {
-    const overrideInterface = process.env.DEFAULT_INTERFACE;
-    if (overrideInterface) {
-        return overrideInterface;
-    }
-
-    const networks = os.networkInterfaces()
-    const allInterfaces: os.NetworkInterfaceInfo[] = [];
-
-    for (const interfaceList of Object.values(networks)) {
-        interfaceList?.forEach(iface => allInterfaces.push(iface))
-    }
-
-    const ipv4Interfaces: os.NetworkInterfaceInfo[] = allInterfaces.filter(iface => iface && !iface.internal && iface.family === 'IPv4')
-    if (ipv4Interfaces.length === 1) {
-        return ipv4Interfaces[0].address;
-    }
-
-    // Use default network domain/gateway logic if available to pick the best interface
-    const defaultNetwork = await getNetworkDefaultDomain();
-    const networkIP = dropLastOctetOfIP(defaultNetwork);
-
-    const validInterfaces: os.NetworkInterfaceInfo[] = ipv4Interfaces.filter(iface => dropLastOctetOfIP(iface.address) === networkIP)
-
-    return validInterfaces.length > 0 ? validInterfaces[0].address : '0.0.0.0';
-}
+const defaultAddressP: Promise<string> = getDefaultInterface();
+const multicastSocketP: Promise<dgram.Socket> = createSock('224.0.0.251', 5353);
 
 async function createSock(multicastAddress: string, mDNSport: number): Promise<dgram.Socket> {
     const socket: dgram.Socket = dgram.createSocket({
@@ -112,7 +67,7 @@ export async function init(): Promise<void> {
         isInit = true
     }
 
-    const socket: dgram.Socket = await groundedSocketP;
+    const socket: dgram.Socket = await multicastSocketP;
 
     socket.on('message', (message, remote) => {
         if (remote.family == 'IPv4') {
@@ -150,17 +105,17 @@ export async function init(): Promise<void> {
     }, 5000)
 }
 
-async function wait(time: number) {
-    await new Promise<void>((resolve, reject) => {
+async function wait(time: number): Promise<void> {
+    await new Promise<void>((resolve) => {
         setTimeout(resolve, time)
     })
 }
 
-export async function forceQuery() {
+export async function forceQuery(): Promise<void> {
     if (!isInit) {
         init();
     } else {
-        const socket: dgram.Socket = await groundedSocketP;
+        const socket: dgram.Socket = await multicastSocketP;
         const message = dnsPacket.encode({
             type: 'query',
             questions: [mDNSelgatoQuery]
